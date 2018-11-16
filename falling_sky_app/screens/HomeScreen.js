@@ -12,6 +12,8 @@ import {
 import { WebBrowser } from 'expo';
 import { Ionicons } from '@expo/vector-icons';
 import { MonoText } from '../components/StyledText';
+import Units from '../components/Units';
+import Losses from '../components/Losses';
 
 export default class HomeScreen extends React.Component {
 	constructor(props) {
@@ -19,53 +21,129 @@ export default class HomeScreen extends React.Component {
 
 		this.state = {
 			introText: 'Choose attacking faction',
+			unitSizes: {
+				leader: {
+					width: 30,
+					height: 50
+				},
+				warbands: {
+					height: 38,
+					width: 30
+				},
+				legions: {
+					height: 28,
+					width: 30
+				},
+				allies: {
+					height: 22,
+					width: 50
+				},
+				citadels: {
+					height: 30,
+					width: 50
+				}
+			},
 			factions: [
 				{
 					name: 'Romans',
 					color: '#CF340C',
 					units: {
-						leader: 1,
-						warbands: 20,
-						allies: 6,
-						citadels: 6,
-						legions: 12
+						leader: {
+							total: 1,
+							url: require('./../assets/images/units/roman_leader.png'),
+						},
+						warbands: {
+							total: 20,
+							url: require('./../assets/images/units/roman_warband.png'),
+						},
+						allies: {
+							total: 6,
+							url: require('./../assets/images/units/roman_ally.png'),
+						},
+						citadels: {
+							total: 6,
+							url: require('./../assets/images/units/roman_citadel.png'),
+						},
+						legions: {
+							total: 12,
+							url: require('./../assets/images/units/roman_legion.png'),
+						},
 					}
 				},
 				{
 					name: 'Averni',
 					color: '#448A66',
 					units: {
-						leader: 1,
-						warbands: 35,
-						allies: 10,
-						citadels: 3
+						leader: {
+							total: 1,
+							url: require('./../assets/images/units/averni_leader.png'),
+						},
+						warbands: {
+							total: 35,
+							url: require('./../assets/images/units/averni_warband.png'),
+						},
+						allies: {
+							total: 10,
+							url: require('./../assets/images/units/averni_ally.png'),
+						},
+						citadels: {
+							total: 3,
+							url: require('./../assets/images/units/averni_citadel.png'),
+						},
 					}
 				},
 				{
 					name: 'Belgae',
 					color: '#D67D0C',
 					units: {
-						leader: 1,
-						warbands: 25,
-						allies: 10,
-						citadels: 1
+						leader: {
+							total: 1,
+							url: require('./../assets/images/units/belgae_leader.png'),
+						},
+						warbands: {
+							total: 25,
+							url: require('./../assets/images/units/belgae_warband.png'),
+						},
+						allies: {
+							total: 10,
+							url: require('./../assets/images/units/belgae_ally.png'),
+						},
+						citadels: {
+							total: 1,
+							url: require('./../assets/images/units/belgae_citadel.png'),
+						},
 					}
 				},
 				{
 					name: 'Aedui',
 					color: '#1F7EBD',
 					units: {
-						warbands: 20,
-						allies: 6,
-						citadels: 2
+						warbands: {
+							total: 20,
+							url: require('./../assets/images/units/aedui_warband.png'),
+						},
+						allies: {
+							total: 6,
+							url: require('./../assets/images/units/aedui_ally.png'),
+						},
+						citadels: {
+							total: 2,
+							url: require('./../assets/images/units/aedui_citadel.png'),
+						},
 					}
 				},
 				{
 					name: 'German',
 					color: '#000',
 					units: {
-						warbands: 15,
-						allies: 6
+						warbands: {
+							total: 15,
+							url: require('./../assets/images/units/german_warband.png'),
+						},
+						allies: {
+							total: 6,
+							url: require('./../assets/images/units/german_ally.png'),
+						},
 					}
 				}
 			],
@@ -73,9 +151,28 @@ export default class HomeScreen extends React.Component {
 			defenderSelected: false,
 			factionSelectionStage: true,
 			unitSelectionStage: false,
+			attacking: {
+				leader: 0,
+				warbands: 0,
+				legions: 0,
+				allies: 0,
+				citadels: 0
+			},
+			defending: {
+				leader: 0,
+				warbands: 0,
+				legions: 0,
+				allies: 0,
+				citadels: 0
+			},
+			retreat: false,
+			ambush: false
 		};
 
 		this.pickFactions = this.pickFactions.bind(this);
+		this.addUnit = this.addUnit.bind(this);
+		this.calculateFight = this.calculateFight.bind(this);
+		this.pickUnits = this.pickUnits.bind(this);
 	}
 
 	static navigationOptions = {
@@ -106,29 +203,19 @@ export default class HomeScreen extends React.Component {
 	}
 
 	selectUnits() {
-		let attackColor;
-		let defendColor;
+		let attacker;
+		let defender;
 
-		this.state.factions.forEach(thisFaction=> {
-			if (thisFaction.name === this.state.attackerSelected) attackColor = thisFaction.color;
-			if (thisFaction.name === this.state.defenderSelected) defendColor = thisFaction.color;
+		this.state.factions.forEach(thisFaction => {
+			if (thisFaction.name === this.state.attackerSelected) attacker = thisFaction;
+			if (thisFaction.name === this.state.defenderSelected) defender = thisFaction;
 		});
-
-		const unitDisplay = (
-			<View style={styles.contentSplit}>
-				<View style={styles.units}>
-					<Text style={{ color: attackColor, fontSize: 20 }}>{this.state.attackerSelected}</Text>
-				</View>
-				<View style={styles.units}>
-					<Text style={{ color: defendColor, fontSize: 20 }}>{this.state.defenderSelected}</Text>
-				</View>
-			</View>
-		);
 
 		this.setState({
 			factionSelectionStage: false,
 			unitSelectionStage: true,
-			unitDisplay
+			attacker,
+			defender
 		});
 	}
 
@@ -146,6 +233,96 @@ export default class HomeScreen extends React.Component {
 					}
 				});
 			});
+		});
+	}
+
+	pickUnits() {
+		this.setState({
+			unitSelectionStage: true,
+			lossResolveStage: false
+		}, () => {
+		});
+	}
+	
+
+	addUnit(type, unit, count) {
+		let updatedCount = this.state[type][unit] + count;
+		const completeType = type === 'attacking' ? this.state.attacker : this.state.defender;
+		const maxCount = completeType.units[unit].total;
+	
+		if (updatedCount > maxCount) updatedCount = maxCount;
+		if (updatedCount < 0) updatedCount = 0;
+
+		this.setState({
+			[type]: {
+				...this.state[type],
+				[unit]: updatedCount
+			}
+		});
+	}
+
+	setOption(action) {
+		this.setState({
+			[action]: !this.state[action]
+		}, ()=> {
+			if (this.state[action]) {
+				this[action].setNativeProps({
+					style: {
+						borderRadius: 8,
+						borderWidth: 2,
+						borderColor: '#FFF'
+					}
+				});
+			} else {
+				this[action].setNativeProps({
+					style: {
+						borderWidth: 0
+					}
+				});
+			}
+		});
+	}
+
+	calculateFight() {
+		let attacking = this.state.attacking;
+		let defending = this.state.defending;
+		let halfLosses = false;
+		let noMobileFirst = false;
+
+		const calcTotal = obj => Object.values(obj).reduce((a, b) => a + b);
+
+		// No retreat
+		if (
+			!this.state.retreat ||
+			this.state.defenderSelected === 'German' ||
+			this.state.ambush
+		) {
+			noMobileFirst = false;
+
+			// Yes Citadel
+			if (defending.citadels > 0) {
+				halfLosses = true;
+			} 
+			// No Citadel
+			else {
+				halfLosses = false;
+			}
+		}
+		// Yes retreat
+		else {
+			noMobileFirst = true;
+		}
+
+		const damage = attacking.leader + attacking.warbands + attacking.legions > 0 ? true : false;
+		const defense = calcTotal(defending) > 0 ? true : false;
+		
+		if (!damage || !defense) return;
+
+		this.setState({
+			unitSelectionStage: false,
+			lossResolveStage: true,
+			halfLosses,
+			noMobileFirst
 		});
 	}
 
@@ -167,7 +344,7 @@ export default class HomeScreen extends React.Component {
 												key={thisFaction.name}
 												ref={c => this[thisFaction.name] = c}
 												onPress={() => this.handleFactionSelection(thisFaction.name)}
-												accessibilityLabel="Learn more about this purple TouchableOpacity "
+
 												style={{ ...styles.factionButton, backgroundColor: thisFaction.color }}
 											>
 												<Text style={{ color: '#FFF' }}>{thisFaction.name}</Text>
@@ -176,22 +353,78 @@ export default class HomeScreen extends React.Component {
 									})
 								}
 							</View>
+							<View style={styles.options}>
+								<TouchableOpacity
+									onPress={() => this.setOption('ambush')}
+									style={styles.optionButton}
+									ref={c => this.ambush = c}
+								>
+									<Text style={{ color: '#FFF' }}>Ambush</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									onPress={() => this.setOption('retreat')}
+									style={styles.optionButton}
+									ref={c => this.retreat = c}
+								>
+									<Text style={{ color: '#FFF' }}>Retreat</Text>
+								</TouchableOpacity>
+							</View>
 						</View>
 					}
 					{
 						this.state.unitSelectionStage &&
-						<View>
+						<View style={styles.headerContent}>
 							<View style={styles.header}>
 								<TouchableOpacity
 									onPress={this.pickFactions}
-									accessibilityLabel="Learn more about this purple TouchableOpacity"
 									style={styles.backButton}
 								>
-									<Text style={{ color: '#FFF' }}>Select factions</Text>
+									<Text style={{ color: '#FFF' }}>Back</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									onPress={this.calculateFight}
+									style={styles.forwardButton}
+								>
+									<Text style={{ color: '#FFF' }}>Fight</Text>
 								</TouchableOpacity>
 							</View>
-							{this.state.unitDisplay}
+							{
+								this.state.attacker && 
+								<Units 
+									attackerSelected={this.state.attackerSelected}
+									defenderSelected={this.state.defenderSelected}
+									attacker={this.state.attacker}
+									defender={this.state.defender}
+									attacking={this.state.attacking}
+									defending={this.state.defending}
+									addUnit={this.addUnit}
+								/>
+							}
 						</View>
+					}
+					{
+						this.state.lossResolveStage &&
+						<View style={styles.headerContent}>
+							<View style={styles.header}>
+								<TouchableOpacity
+									onPress={this.pickUnits}
+									style={styles.backButton}
+								>
+									<Text style={{ color: '#FFF' }}>Back</Text>
+								</TouchableOpacity>
+							</View>
+							<Losses
+								unitSizes={this.state.unitSizes}
+								defenderSelected={this.state.defenderSelected}
+								defender={this.state.defender}
+								defending={this.state.defending}
+								attacker={this.state.attacker}
+								attacking={this.state.attacking}
+								noMobileFirst={this.state.noMobileFirst}
+								halfLosses={this.state.halfLosses}
+							/>
+						</View>
+						
 					}
 				</ImageBackground>
 			</View>
@@ -209,17 +442,15 @@ const styles = StyleSheet.create({
 		alignContent: 'space-around',
 		padding: 60
 	},
-	header: {
-		paddingTop: 40,
-		paddingLeft: 20
-	},
-	contentSplit: {
+	headerContent: {
 		flex: 1,
-		flexDirection: 'row',
-		alignContent: 'space-around'
 	},
-	units: {
-		flex: 1
+	header: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		paddingTop: 40,
+		paddingLeft: 10,
+		paddingRight: 10
 	},
 	introText: {
 		fontSize: 24,
@@ -237,11 +468,40 @@ const styles = StyleSheet.create({
 		padding: 10,
 		elevation: 10,
 	},
+	forwardButton: {
+		alignSelf: 'flex-end',
+		backgroundColor: '#444',
+		borderRadius: 5,
+		padding: 10,
+		elevation: 10,
+	},
+	options: {
+		flexDirection: 'row',
+		justifyContent: 'center'
+	},
+	optionButton: {
+		width: 100,
+		alignItems: 'center',
+		backgroundColor: '#444',
+		borderRadius: 5,
+		padding: 10,
+		elevation: 10,
+		marginRight: 10,
+		marginTop: 30
+	},
 	factionButton: {
 		backgroundColor: '#CF340C',
 		borderRadius: 5,
 		padding: 20,
 		elevation: 10,
+	},
+	numberButton: {
+		alignSelf: 'flex-start',
+		backgroundColor: '#FFF',
+		borderRadius: 5,
+		padding: 10,
+		elevation: 10,
+		marginRight: 10
 	},
 	developmentModeText: {
 		marginBottom: 20,
