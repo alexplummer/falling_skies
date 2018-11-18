@@ -17,24 +17,132 @@ export default class Losses extends React.Component {
 
     this.state = {};
     this.setActive = this.setActive.bind(this);
+    this.calculateLosses = this.calculateLosses.bind(this);
+    this.calcAmbush = this.calcAmbush.bind(this);
   }
 
-  setActive(ref) {
+  componentDidMount() {
+    this.calculateLosses();
+
+    if (
+      this.props.defender.name === "Romans" &&
+      this.props.defending.leader === 1
+    ) {
+      if (this.props.ambush || this.props.attacker.name === "German") {
+        this.setState({
+          ambushCheck: true
+        });
+      }
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    prevProps !== this.props && this.calculateLosses();
+  }
+
+  calcAmbush() {
+    this.setState({
+      ambushDiceRolled: true
+    });
+
+    setTimeout(() => {
+      const diceResult = Math.floor(6 * Math.random()) + 1;
+      let resultUrl;
+
+      switch (diceResult) {
+        case 1:
+          resultUrl = require("./../assets/images/dice_1.png");
+          break;
+        case 2:
+          resultUrl = require("./../assets/images/dice_2.png");
+          break;
+        case 3:
+          resultUrl = require("./../assets/images/dice_3.png");
+          break;
+        case 4:
+          resultUrl = require("./../assets/images/dice_4.png");
+          break;
+        case 5:
+          resultUrl = require("./../assets/images/dice_5.png");
+          break;
+        case 6:
+          resultUrl = require("./../assets/images/dice_6.png");
+          break;
+      }
+
+      let ambushRoll;
+
+      if (diceResult > 3) {
+        ambushRoll = true;
+      } else {
+        ambushRoll = false;
+      }
+
+      if (this.props.attacker.name === "Belgae") {
+        if (diceResult > 4) {
+          ambushRoll = true;
+        } else {
+          ambushRoll = false;
+        }
+      }
+
+      this.setState({
+        ambushDiceRolledComplete: true,
+        ambushDiceResult: resultUrl,
+        ambushRoll
+      });
+    }, 1500);
+
+    setTimeout(() => {
+      this.setState(
+        {
+          ambushCheck: false
+        },
+        () => {
+          this.calculateLosses();
+        }
+      );
+    }, 3000);
+  }
+
+  setActive(type, mobileType, ref, shouldRoll) {
+    if (this.state[mobileType].limit && !this.state[ref]) return;
+
+    const count = this.state[ref] ? -1 : 1;
+    let prevCount =
+      this.state[mobileType].count == null ? 0 : this.state[mobileType].count;
+
     this.setState(
       {
-        [ref]: !this.state[ref]
+        [ref]: !this.state[ref],
+        [mobileType]: {
+          ...this.state[mobileType],
+          count: (prevCount += count)
+        }
       },
       () => {
+        this.props.setLosses(type, count, shouldRoll);
+
         this[ref].setNativeProps({
           style: {
             opacity: this.state[ref] ? 1 : 0
+          }
+        });
+
+        this.setState({
+          [mobileType]: {
+            ...this.state[mobileType],
+            limit:
+              this.state[mobileType].count >= this.state[mobileType].losses
+                ? true
+                : false
           }
         });
       }
     );
   }
 
-  render() {
+  calculateLosses() {
     let {
       defenderSelected,
       defender,
@@ -135,14 +243,43 @@ export default class Losses extends React.Component {
       }
     }
 
+    this.setState({
+      noMobileFirst,
+      mobile: { ...this.state.mobile, losses: mobileLosses },
+      noMobile: { ...this.state.noMobile, losses: noMobileLosses }
+    });
+  }
+
+  render() {
     // Build unit display
     let noMobileUnits = [];
     let mobileUnits = [];
 
-    Object.entries(defending).forEach((unit, index) => {
+    Object.entries(this.props.defending).forEach((unit, index) => {
       const type = unit[0];
       const total = unit[1];
       let units = [];
+      let mobileType;
+
+      if (type === "citadels" || type === "allies") {
+        mobileType = "noMobile";
+      } else {
+        mobileType = "mobile";
+      }
+
+      let shouldRoll = false;
+
+      if (type === "citadels" || type === "leader" || type === "legions") {
+        shouldRoll = true;
+
+        if (this.props.ambush || this.props.attacker.name === "German") {
+          if (this.state.ambushRoll) {
+            shouldRoll = true;
+          } else {
+            shouldRoll = false;
+          }
+        }
+      }
 
       if (total > 0) {
         for (let i = 0; i < total; i++) {
@@ -154,16 +291,27 @@ export default class Losses extends React.Component {
                     width: this.props.unitSizes[type].width,
                     height: this.props.unitSizes[type].height
                   }}
-                  source={defender.units[type].url}
+                  source={this.props.defender.units[type].url}
                 />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.removeUnit}
-                onPress={() => this.setActive(type + i.toString())}
+                onPress={() =>
+                  this.setActive(
+                    type,
+                    mobileType,
+                    type + i.toString(),
+                    shouldRoll
+                  )
+                }
               >
                 <Image
                   style={{ ...styles.removeUnit, opacity: 0 }}
-                  source={require("./../assets/images/cross.png")}
+                  source={
+                    shouldRoll
+                      ? require("./../assets/images/cross_dice.png")
+                      : require("./../assets/images/cross.png")
+                  }
                   ref={c => (this[type + i.toString()] = c)}
                 />
               </TouchableOpacity>
@@ -172,49 +320,89 @@ export default class Losses extends React.Component {
         }
       }
 
-      if (type === "citadels" || type === "allies") {
-        noMobileUnits.push(units);
-      } else {
-        mobileUnits.push(units);
-      }
+      mobileType === "noMobile"
+        ? noMobileUnits.push(units)
+        : mobileUnits.push(units);
     });
 
     return (
       <View style={styles.content}>
         <ScrollView style={styles.units}>
-          <View style={styles.mobile}>
-            <Text
-              style={{
-                color: "#000",
-                marginTop: 5,
-                marginBottom: 10,
-                fontSize: 15,
-                fontWeight: "bold",
-                textAlign: "center"
-              }}
-            >
-              {defenderSelected} remove {noMobileLosses} citadels or allies
-            </Text>
-            {noMobileUnits}
-            <View style={styles.losses} />
-          </View>
+          {this.state.ambushCheck && (
+            <View style={styles.roll}>
+              <Text>Ambush! Check for defensive rolls and counterattack:</Text>
+              <TouchableOpacity
+                onPress={this.calcAmbush}
+                style={styles.forwardButton}
+              >
+                <Text style={{ color: "#FFF" }}>Roll</Text>
+              </TouchableOpacity>
+              {this.state.ambushDiceRolled && (
+                <Image
+                  style={styles.diceAnim}
+                  source={
+                    !this.state.ambushDiceRolledComplete
+                      ? require("./../assets/images/dice_anim.gif")
+                      : this.state.ambushDiceResult
+                  }
+                />
+              )}
+            </View>
+          )}
+          {!this.state.ambushCheck && (
+            <View style={styles.roll}>
+              <Text>
+                {!this.state.ambushRoll
+                  ? "Fail, no defense rolls or counterattack"
+                  : "Success, defense rolls and counterattack permitted"}
+              </Text>
+            </View>
+          )}
+          {!this.state.ambushCheck && (
+            <View>
+              <View style={styles.mobile}>
+                <Text
+                  style={{
+                    color: "#000",
+                    marginTop: 5,
+                    marginBottom: 10,
+                    fontSize: 15,
+                    fontWeight: "bold",
+                    textAlign: "center"
+                  }}
+                >
+                  {this.props.defenderSelected} remove{" "}
+                  {this.state.noMobile &&
+                    this.state.noMobile.losses &&
+                    this.state.noMobile.losses.toString()}{" "}
+                  citadels or allies
+                </Text>
+                {noMobileUnits}
+                <View style={styles.losses} />
+              </View>
 
-          <View style={styles.noMobile}>
-            <Text
-              style={{
-                color: "#000",
-                marginTop: 5,
-                marginBottom: 10,
-                fontSize: 15,
-                fontWeight: "bold",
-                textAlign: "center"
-              }}
-            >
-              {defenderSelected} remove {mobileLosses} pieces
-            </Text>
-            {mobileUnits}
-            <View style={styles.losses} />
-          </View>
+              <View style={styles.noMobile}>
+                <Text
+                  style={{
+                    color: "#000",
+                    marginTop: 5,
+                    marginBottom: 10,
+                    fontSize: 15,
+                    fontWeight: "bold",
+                    textAlign: "center"
+                  }}
+                >
+                  {this.props.defenderSelected} remove{" "}
+                  {this.state.mobile &&
+                    this.state.mobile.losses &&
+                    this.state.mobile.losses.toString()}{" "}
+                  pieces
+                </Text>
+                {mobileUnits}
+                <View style={styles.losses} />
+              </View>
+            </View>
+          )}
         </ScrollView>
       </View>
     );
@@ -225,6 +413,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000"
+  },
+  roll: {},
+  diceAnim: {
+    width: 100,
+    height: 100
   },
   content: {
     flex: 1,
