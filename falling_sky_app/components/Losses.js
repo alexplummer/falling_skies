@@ -22,22 +22,37 @@ export default class Losses extends React.Component {
   }
 
   componentDidMount() {
-    this.calculateLosses();
+    this.setState(
+      {
+        originalState: { ...this.state }
+      },
+      () => {
+        this.calculateLosses();
 
-    if (
-      this.props.defender.name === "Romans" &&
-      this.props.defending.leader === 1
-    ) {
-      if (this.props.ambush || this.props.attacker.name === "German") {
-        this.setState({
-          ambushCheck: true
-        });
+        if (
+          this.props.defender.name === "Romans" &&
+          this.props.defending.leader === 1
+        ) {
+          if (this.props.ambush || this.props.attacker.name === "German") {
+            this.setState({
+              ambushCheck: true
+            });
+          }
+        }
       }
-    }
+    );
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps, prevState) {
     prevProps !== this.props && this.calculateLosses();
+
+    this.state.totalRequiredLosses &&
+      prevState.totalRequiredLosses !== this.state.totalRequiredLosses &&
+      this.props.totalRequiredLosses(this.state.totalRequiredLosses);
+  }
+
+  reset() {
+    this.setState({ ...this.state.originalState });
   }
 
   calcAmbush() {
@@ -158,9 +173,17 @@ export default class Losses extends React.Component {
       let strongLegion = false;
       let strongWarband = false;
 
-      if (attacker.name === "Romans" && attacking.leader === 1) {
+      if (
+        attacker.name === "Romans" &&
+        attacking.leader != null &&
+        attacking.leader === 1
+      ) {
         strongLegion = true;
-      } else if (attacker.name === "Belgae" && attacking.leader === 1) {
+      } else if (
+        attacker.name === "Belgae" &&
+        attacking.leader != null &&
+        attacking.leader === 1
+      ) {
         strongWarband = true;
       }
 
@@ -194,6 +217,8 @@ export default class Losses extends React.Component {
     const totalLosses = halfLosses
       ? Math.floor(calcAttack() / 2)
       : calcAttack();
+
+    this.setState({ totalRequiredLosses: totalLosses });
 
     // Calculate total non-mobile pieces
     let noMobilePieces = 0;
@@ -321,8 +346,8 @@ export default class Losses extends React.Component {
       }
 
       mobileType === "noMobile"
-        ? noMobileUnits.push(units)
-        : mobileUnits.push(units);
+        ? (noMobileUnits = noMobileUnits.concat(units))
+        : (mobileUnits = mobileUnits.concat(units));
     });
 
     return (
@@ -349,7 +374,7 @@ export default class Losses extends React.Component {
               )}
             </View>
           )}
-          {!this.state.ambushCheck && (
+          {!this.state.ambushCheck && this.props.ambush && (
             <View style={styles.roll}>
               <Text>
                 {!this.state.ambushRoll
@@ -360,47 +385,48 @@ export default class Losses extends React.Component {
           )}
           {!this.state.ambushCheck && (
             <View>
-              <View style={styles.mobile}>
-                <Text
-                  style={{
-                    color: "#000",
-                    marginTop: 5,
-                    marginBottom: 10,
-                    fontSize: 15,
-                    fontWeight: "bold",
-                    textAlign: "center"
-                  }}
-                >
-                  {this.props.defenderSelected} remove{" "}
-                  {this.state.noMobile &&
-                    this.state.noMobile.losses &&
-                    this.state.noMobile.losses.toString()}{" "}
-                  citadels or allies
-                </Text>
-                {noMobileUnits}
-                <View style={styles.losses} />
-              </View>
-
-              <View style={styles.noMobile}>
-                <Text
-                  style={{
-                    color: "#000",
-                    marginTop: 5,
-                    marginBottom: 10,
-                    fontSize: 15,
-                    fontWeight: "bold",
-                    textAlign: "center"
-                  }}
-                >
-                  {this.props.defenderSelected} remove{" "}
-                  {this.state.mobile &&
-                    this.state.mobile.losses &&
-                    this.state.mobile.losses.toString()}{" "}
-                  pieces
-                </Text>
-                {mobileUnits}
-                <View style={styles.losses} />
-              </View>
+              {noMobileUnits.length > 0 && (
+                <View style={styles.mobile}>
+                  <Text
+                    style={{
+                      color: "#000",
+                      marginTop: 5,
+                      marginBottom: 10,
+                      fontSize: 15,
+                      fontWeight: "bold",
+                      textAlign: "center"
+                    }}
+                  >
+                    Remove{" "}
+                    {this.state.noMobile &&
+                      this.state.noMobile.losses &&
+                      this.state.noMobile.losses.toString()}{" "}
+                    citadels or allies
+                  </Text>
+                  <View style={styles.unitDisplay}>{noMobileUnits}</View>
+                </View>
+              )}
+              {mobileUnits.length > 0 && (
+                <View style={styles.noMobile}>
+                  <Text
+                    style={{
+                      color: "#000",
+                      marginTop: 5,
+                      marginBottom: 10,
+                      fontSize: 15,
+                      fontWeight: "bold",
+                      textAlign: "center"
+                    }}
+                  >
+                    Remove{" "}
+                    {this.state.mobile &&
+                      this.state.mobile.losses &&
+                      this.state.mobile.losses.toString()}{" "}
+                    pieces
+                  </Text>
+                  <View style={styles.unitDisplay}>{mobileUnits}</View>
+                </View>
+              )}
             </View>
           )}
         </ScrollView>
@@ -436,11 +462,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignContent: "space-around"
   },
-  mobile: {
-    flexDirection: "row"
-  },
-  noMobile: {
-    flexDirection: "row"
+  mobile: {},
+  noMobile: {},
+  unitDisplay: {
+    flexDirection: "row",
+    flexWrap: "wrap"
   },
   units: {
     flexDirection: "column",

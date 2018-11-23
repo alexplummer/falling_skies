@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { MonoText } from "../components/StyledText";
 import Units from "../components/Units";
 import Losses from "../components/Losses";
+import RollForLosses from "../components/RollForLosses";
 
 export default class HomeScreen extends React.Component {
   constructor(props) {
@@ -168,7 +169,13 @@ export default class HomeScreen extends React.Component {
       retreat: false,
       ambush: false,
       shouldRoll: {},
-      rollComplete: true
+      rollComplete: true,
+      totalLosses: 0,
+      rollForLosses: false,
+      counterShouldRoll: {},
+      counterRollComplete: true,
+      counterTotalLosses: 0,
+      counterRollForLosses: false
     };
 
     this.pickFactions = this.pickFactions.bind(this);
@@ -176,17 +183,38 @@ export default class HomeScreen extends React.Component {
     this.calculateFight = this.calculateFight.bind(this);
     this.pickUnits = this.pickUnits.bind(this);
     this.setLosses = this.setLosses.bind(this);
+    this.rollLosses = this.rollLosses.bind(this);
+    this.totalRequiredLosses = this.totalRequiredLosses.bind(this);
+    this.counterTotalRequiredLosses = this.counterTotalRequiredLosses.bind(
+      this
+    );
+    this.counterAttack = this.counterAttack.bind(this);
+    this.setFinalLosses = this.setFinalLosses.bind(this);
+    this.setCounterLosses = this.setCounterLosses.bind(this);
+    this.fight = this.fight.bind(this);
+    this.reset = this.reset.bind(this);
   }
 
   static navigationOptions = {
     header: null
   };
 
+  componentDidMount() {
+    this.setState({
+      originalState: { ...this.state }
+    });
+  }
+
   handleFactionSelection(faction) {
-    if (this.state.attackerSelected === faction) {
+    if (
+      this.state.attackerSelected === faction ||
+      this.state.defenderSelected === faction
+    ) {
       this.pickFactions();
       return;
     }
+
+    if (this.state.attackerSelected && this.state.defenderSelected) return;
 
     const type = this.state.attackerSelected
       ? "defenderSelected"
@@ -222,8 +250,6 @@ export default class HomeScreen extends React.Component {
     });
 
     this.setState({
-      factionSelectionStage: false,
-      unitSelectionStage: true,
       attacker,
       defender
     });
@@ -235,7 +261,14 @@ export default class HomeScreen extends React.Component {
         factionSelectionStage: true,
         unitSelectionStage: false,
         attackerSelected: false,
-        introText: "Choose attacking faction"
+        defenderSelected: false,
+        defending: {},
+        attacking: {},
+        attacker: "",
+        defender: "",
+        introText: "Choose attacking faction",
+        ambush: false,
+        retreat: false
       },
       () => {
         this.state.factions.forEach(thisFaction => {
@@ -341,6 +374,7 @@ export default class HomeScreen extends React.Component {
 
     this.setState({
       defendingWithLosses: { ...defending },
+      counterDefendingWithLosses: { ...attacking },
       unitSelectionStage: false,
       lossResolveStage: true,
       halfLosses,
@@ -349,12 +383,23 @@ export default class HomeScreen extends React.Component {
   }
 
   setLosses(type, count, shouldRoll) {
+    let allLosses = count;
+
+    if (this.state.allLosses && this.state.allLosses[type]) {
+      allLosses = this.state.allLosses[type] += count;
+    }
+
     this.setState(
       {
         defendingWithLosses: {
           ...this.state.defendingWithLosses,
           [type]: (this.state.defendingWithLosses[type] -= count)
         },
+        allLosses: {
+          ...this.state.allLosses,
+          [type]: allLosses
+        },
+        totalLosses: (this.state.totalLosses += count),
         shouldRoll: {
           ...this.state.shouldRoll,
           [type]: this.state.shouldRoll[type] ? this.state.shouldRoll[type] : 0
@@ -363,6 +408,7 @@ export default class HomeScreen extends React.Component {
       () => {
         this.setState(
           {
+            finalLosses: allLosses,
             shouldRoll: {
               ...this.state.shouldRoll,
               [type]: shouldRoll
@@ -380,6 +426,117 @@ export default class HomeScreen extends React.Component {
         );
       }
     );
+  }
+
+  setCounterLosses(type, count, shouldRoll) {
+    let counterAllLosses = count;
+
+    if (this.state.counterAllLosses && this.state.counterAllLosses[type]) {
+      counterAllLosses = this.state.counterAllLosses[type] += count;
+    }
+
+    this.setState(
+      {
+        counterDefendingWithLosses: {
+          ...this.state.counterDefendingWithLosses,
+          [type]: (this.state.counterDefendingWithLosses[type] -= count)
+        },
+        counterAllLosses: {
+          ...this.state.counterAllLosses,
+          [type]: counterAllLosses
+        },
+        counterTotalLosses: (this.state.counterTotalLosses += count),
+        counterShouldRoll: {
+          ...this.state.counterShouldRoll,
+          [type]: this.state.counterShouldRoll[type]
+            ? this.state.counterShouldRoll[type]
+            : 0
+        }
+      },
+      () => {
+        this.setState(
+          {
+            counterShouldRoll: {
+              ...this.state.counterShouldRoll,
+              [type]: counterShouldRoll
+                ? (this.state.counterShouldRoll[type] += count)
+                : this.state.counterShouldRoll[type]
+            }
+          },
+          () => {
+            if (this.state.counterShouldRoll[type] > 0) {
+              this.setState({
+                counterRollComplete: false
+              });
+            }
+          }
+        );
+      }
+    );
+  }
+
+  totalRequiredLosses(totalRequiredLosses) {
+    this.setState({ totalRequiredLosses });
+  }
+
+  counterTotalRequiredLosses(totalRequiredLosses) {
+    this.setState({ counterTotalRequiredLosses: totalRequiredLosses });
+  }
+
+  fight() {
+    if (!this.state.attacker || !this.state.defender) return;
+
+    this.setState({
+      factionSelectionStage: false,
+      unitSelectionStage: true
+    });
+  }
+
+  setFinalLosses(finalLosses) {
+    let updatedFinalLosses = { ...this.state.defending };
+
+    Object.entries(this.state.defending).forEach(entry => {
+      const type = entry[0];
+      const count = entry[1];
+
+      if (finalLosses[type] != null) {
+        updatedFinalLosses = {
+          ...updatedFinalLosses,
+          [type]: (updatedFinalLosses[type] -= finalLosses[type])
+        };
+      }
+    });
+
+    this.setState({ updatedFinalLosses });
+  }
+
+  rollLosses() {
+    if (this.state.totalRequiredLosses >= this.state.totalLosses) {
+      this.setState({
+        rollForLosses: true
+      });
+    }
+  }
+
+  counterAttack() {
+    this.setState({
+      counterAttack: true,
+      counterAttackOver: true,
+      rollForLosses: false,
+      lossResolveStage: false
+    });
+  }
+
+  reset() {
+    this.setState({
+      ...this.state.originalState,
+      lossResolveStage: false,
+      counterAttack: false
+    });
+    
+    this.losses && this.losses.reset();
+    this.rflosses && this.rflosses.reset();
+    this.cattack && this.cattack.reset();
   }
 
   render() {
@@ -427,6 +584,14 @@ export default class HomeScreen extends React.Component {
                   ref={c => (this.retreat = c)}
                 >
                   <Text style={{ color: "#FFF" }}>Retreat</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.options}>
+                <TouchableOpacity
+                  onPress={this.fight}
+                  style={styles.optionButton}
+                >
+                  <Text style={{ color: "#FFF" }}>FIGHT!</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -480,8 +645,7 @@ export default class HomeScreen extends React.Component {
                     </TouchableOpacity>
                   )}
                 {!this.state.ambush &&
-                  !this.state.attackerSelected.name === "Germans" &&
-                  this.state.rollComplete && (
+                  this.state.attackerSelected !== "German" && (
                     <TouchableOpacity
                       onPress={this.counterAttack}
                       style={styles.forwardButton}
@@ -489,8 +653,19 @@ export default class HomeScreen extends React.Component {
                       <Text style={{ color: "#FFF" }}>Counter attack?</Text>
                     </TouchableOpacity>
                   )}
+                {!this.state.counterAttack || (
+                  <TouchableOpacity
+                    onPress={this.reset}
+                    style={styles.forwardButton}
+                  >
+                    <Text style={{ color: "#FFF" }}>Battle over</Text>
+                  </TouchableOpacity>
+                )}
               </View>
               <Losses
+                ref={c => {
+                  this.losses = c;
+                }}
                 unitSizes={this.state.unitSizes}
                 defenderSelected={this.state.defenderSelected}
                 defender={this.state.defender}
@@ -502,6 +677,54 @@ export default class HomeScreen extends React.Component {
                 setLosses={this.setLosses}
                 defendingWithLosses={this.state.defendingWithLosses}
                 ambush={this.state.ambush}
+                totalRequiredLosses={this.totalRequiredLosses}
+              />
+            </View>
+          )}
+          {this.state.rollForLosses && (
+            <RollForLosses
+              ref={c => {
+                this.rflosses = c;
+              }}
+              shouldRoll={this.state.shouldRoll}
+              unitSizes={this.state.unitSizes}
+              defenderSelected={this.state.defenderSelected}
+              defender={this.state.defender}
+              allLosses={this.state.allLosses}
+              setFinalLosses={this.setFinalLosses}
+            />
+          )}
+          {this.state.counterAttack && (
+            <View style={styles.headerContent}>
+              <View style={styles.header}>
+                <TouchableOpacity
+                  onPress={this.reset}
+                  style={styles.forwardButton}
+                >
+                  <Text style={{ color: "#FFF" }}>Battle over</Text>
+                </TouchableOpacity>
+              </View>
+              <Losses
+                ref={c => {
+                  this.cattack = c;
+                }}
+                counterAttack={true}
+                unitSizes={this.state.unitSizes}
+                defenderSelected={this.state.attackerSelected}
+                defender={this.state.attacker}
+                defending={this.state.attacking}
+                attacker={this.state.defender}
+                attacking={
+                  this.state.updatedFinalLosses
+                    ? this.state.updatedFinalLosses
+                    : this.state.defendingWithLosses
+                }
+                noMobileFirst={true}
+                halfLosses={false}
+                ambush={false}
+                setLosses={() => {}}
+                defendingWithLosses={this.state.counterDefendingWithLosses}
+                totalRequiredLosses={this.counterTotalRequiredLosses}
               />
             </View>
           )}
